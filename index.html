@@ -3,27 +3,32 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>BTC Pro Sim</title>
+<title>Chaos Trading Sim</title>
 
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
 
 <style>
-/* ===== 1. ОСНОВНОЙ СТИЛЬ (Layout) ===== */
+/* ===== 1. ОСНОВНОЙ СТИЛЬ ===== */
 body {
     margin: 0;
     background: #121417;
     color: #e6e6e6;
     font-family: -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
-    /* Разрешаем обычный скролл страницы */
-    overflow-y: scroll; 
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 40px; /* Отступ снизу для удобства */
+    overflow-y: hidden; /* Блокируем скролл всей страницы, всё помещается на экран */
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 
 .wrapper {
     max-width: 800px;
     margin: 0 auto;
-    padding: 15px;
+    padding: 10px;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
 }
 
 /* ===== 2. ШАПКА ===== */
@@ -31,81 +36,60 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
+    flex-shrink: 0;
 }
 .title { font-size: 18px; font-weight: 800; color: #fff; }
 .sub { font-size: 12px; color: #6b7280; margin-top: 2px; }
-
-.tf-buttons {
-    background: #1e2228;
-    padding: 2px;
-    border-radius: 8px;
-    display: flex;
-    gap: 2px;
-}
-.tf-buttons button {
-    background: transparent;
-    border: 0;
-    color: #888;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 600;
-}
-.tf-buttons button.active {
-    background: #363a45;
-    color: #fff;
+.live-badge { 
+    background: #1fc77b; color: #000; padding: 2px 6px; 
+    border-radius: 4px; font-size: 10px; font-weight: 700; vertical-align: middle;
 }
 
-/* ===== 3. ГРАФИКИ (Фиксированная высота) ===== */
+/* ===== 3. ГРАФИК (Теперь один и большой) ===== */
+#chart-area {
+    flex: 1; /* Занимает всё свободное место */
+    width: 100%;
+    min-height: 0; /* Важно для flex контейнера */
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    margin-bottom: 15px;
+    border: 1px solid #1f2937;
+}
 #price {
     width: 100%;
-    height: 380px; /* Фиксированная высота */
-    border-radius: 8px;
-    overflow: hidden;
-    margin-bottom: 10px;
-}
-#volume {
-    width: 100%;
-    height: 100px; /* Фиксированная высота */
-    border-radius: 8px;
-    overflow: hidden;
-    margin-bottom: 20px;
+    height: 100%;
 }
 
-/* ===== 4. ПАНЕЛЬ ТОРГОВЛИ (Крупная и удобная) ===== */
+/* ===== 4. ПАНЕЛЬ ТОРГОВЛИ (Сохранили дизайн) ===== */
 .trade-panel {
     background: #1e2228;
     border-radius: 16px;
-    padding: 20px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    padding: 15px 20px;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+    flex-shrink: 0; /* Не сжимается */
 }
 
 .stats-row {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 20px;
-    padding: 0 10px;
+    margin-bottom: 15px;
 }
 
 .stat-box { display: flex; flex-direction: column; }
 .stat-label { font-size: 11px; color: #888; text-transform: uppercase; font-weight: 600; }
-.stat-val { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+.stat-val { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
 
-/* Цвета для PnL */
 .pnl-pos { color: #1fc77b; }
 .pnl-neg { color: #e04b4b; }
 .pnl-neu { color: #fff; }
 
-/* Кнопки */
-.buttons-row {
-    display: flex;
-    gap: 12px;
-}
+.buttons-row { display: flex; gap: 12px; }
 
 .btn {
     flex: 1;
-    height: 56px; /* Большие кнопки под палец */
+    height: 54px;
     border: none;
     border-radius: 12px;
     font-size: 16px;
@@ -115,32 +99,39 @@ header {
     align-items: center;
     justify-content: center;
     transition: transform 0.1s, opacity 0.2s;
+    cursor: pointer;
+    text-transform: uppercase;
 }
-.btn:active { transform: scale(0.97); opacity: 0.9; }
+.btn:active { transform: scale(0.96); opacity: 0.9; }
 
-.btn-long { background: #1fc77b; }
-.btn-short { background: #e04b4b; }
+.btn-long { background: #1fc77b; box-shadow: 0 4px 12px rgba(31, 199, 123, 0.2); }
+.btn-short { background: #e04b4b; box-shadow: 0 4px 12px rgba(224, 75, 75, 0.2); }
 .btn-close { background: #4b5563; color: #fff; border: 1px solid #6b7280; }
 
 .btn:disabled {
-    opacity: 0.4;
+    opacity: 0.5;
     background: #2a2d33 !important;
     color: #888 !important;
+    box-shadow: none;
     cursor: not-allowed;
 }
 
-.reset-container {
-    margin-top: 15px;
-    text-align: center;
-    display: none; /* Скрыто по умолчанию */
+/* Кнопка сброса (если слил депозит) */
+.reset-overlay {
+    position: absolute; top:0; left:0; right:0; bottom:0;
+    background: rgba(0,0,0,0.8);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
 }
-.btn-reset {
-    background: transparent;
-    border: 1px solid #374151;
-    color: #9ca3af;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 12px;
+.btn-restart {
+    padding: 15px 30px;
+    background: #fff; color: #000;
+    border: 0; border-radius: 30px;
+    font-weight: 700; font-size: 18px;
+    cursor: pointer;
 }
 
 </style>
@@ -151,18 +142,18 @@ header {
 <div class="wrapper">
     <header>
         <div>
-            <div class="title">BTC/USDT</div>
-            <div class="sub">x150 Leverage • Realtime</div>
-        </div>
-        <div class="tf-buttons">
-            <button onclick="setTF('15m')">15M</button>
-            <button onclick="setTF('5m')">5M</button>
-            <button onclick="setTF('1m')" class="active">1M</button>
+            <div class="title">BTC/USDT <span class="live-badge">SIMULATOR</span></div>
+            <div class="sub">High Volatility • Random Walk</div>
         </div>
     </header>
 
-    <div id="price"></div>
-    <div id="volume"></div>
+    <div id="chart-area">
+        <div id="price"></div>
+        <div class="reset-overlay" id="reset-screen">
+            <h2 style="color:#e04b4b; margin-bottom:20px;">LIQUIDATED</h2>
+            <button class="btn-restart" onclick="resetGame()">TRY AGAIN</button>
+        </div>
+    </div>
 
     <div class="trade-panel">
         <div class="stats-row">
@@ -178,327 +169,246 @@ header {
 
         <div class="buttons-row" id="action-area">
             </div>
-
-        <div class="reset-container" id="reset-area">
-            <button class="btn-reset" onclick="resetGame()">Reset Balance</button>
-        </div>
     </div>
 </div>
 
 <script>
 /* ==========================================
-   1. НАСТРОЙКИ И УТИЛИТЫ
+   1. НАСТРОЙКИ СИСТЕМЫ
    ========================================== */
-// Блокируем системный зум iOS, но оставляем скролл
+// Отключаем зум iOS
 document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
 
-let INTERVAL = '1m';
-let ws = null;
-let sessionId = 0;
-let lastPrice = 0;
-
 /* ==========================================
-   2. ГРАФИКИ (CONFIG)
+   2. ГРАФИК
    ========================================== */
-const chartConfig = {
+const chartContainer = document.getElementById('price');
+const chart = LightweightCharts.createChart(chartContainer, {
     layout: { background: { color: '#121417' }, textColor: '#9ca3af' },
     grid: { vertLines: { color: '#1f2937' }, horzLines: { color: '#1f2937' } },
     timeScale: { 
         timeVisible: true, 
-        secondsVisible: false, 
+        secondsVisible: true,
         borderColor: '#1f2937',
-        rightOffset: 5 
     },
-    // !!! ГЛАВНОЕ ИСПРАВЛЕНИЕ СКРОЛЛА !!!
-    handleScroll: {
-        vertTouchDrag: false, // FALSE = страница скроллится пальцем
-        horzTouchDrag: true,  // TRUE = график можно двигать влево-вправо
-    },
-    handleScale: {
-        pinch: true, // Зум двумя пальцами разрешен
-        axisPressedMouseMove: false, // Отключаем зум по шкале (чтобы не сбивать)
-    }
-};
+    crosshair: { mode: 0 }, // Free crosshair
+    handleScroll: { vertTouchDrag: false, horzTouchDrag: true },
+    handleScale: { pinch: true, axisPressedMouseMove: true },
+});
 
-// --- PRICE CHART ---
-const priceChart = LightweightCharts.createChart(document.getElementById('price'), chartConfig);
-const candles = priceChart.addCandlestickSeries({
+const candleSeries = chart.addCandlestickSeries({
     upColor: '#1fc77b', downColor: '#e04b4b',
     borderUpColor: '#1fc77b', borderDownColor: '#e04b4b',
     wickUpColor: '#1fc77b', wickDownColor: '#e04b4b'
 });
 
-// --- VOLUME CHART ---
-const volConfig = { ...chartConfig };
-// Для объема отключаем зум вообще, чтобы случайно не задеть
-volConfig.handleScale = { pinch: false, axisPressedMouseMove: false, mouseWheel: false };
-
-const volumeChart = LightweightCharts.createChart(document.getElementById('volume'), volConfig);
-const volumeSeries = volumeChart.addHistogramSeries({
-    base: 0, priceFormat: { type: 'volume' }
-});
-
-// Синхронизация движения (влево-вправо)
-function syncCharts(a, b) {
-    let isSyncing = false;
-    a.timeScale().subscribeVisibleLogicalRangeChange(range => {
-        if(!isSyncing && range) {
-            isSyncing = true;
-            b.timeScale().setVisibleLogicalRange(range);
-            isSyncing = false;
-        }
-    });
-}
-syncCharts(priceChart, volumeChart);
-syncCharts(volumeChart, priceChart);
-
-// Авто-ресайз (чтобы не было белых полос)
+// Авто-ресайз
 new ResizeObserver(entries => {
     const r = entries[0].contentRect;
-    priceChart.resize(r.width, 380); // Держим высоту жесткой
-}).observe(document.getElementById('price'));
-
-new ResizeObserver(entries => {
-    const r = entries[0].contentRect;
-    volumeChart.resize(r.width, 100);
-}).observe(document.getElementById('volume'));
-
+    chart.resize(r.width, r.height);
+}).observe(document.getElementById('chart-area'));
 
 /* ==========================================
-   3. ДАННЫЕ (API + WS)
+   3. ГЕНЕРАТОР ХАОСА (СИМУЛЯЦИЯ РЫНКА)
    ========================================== */
-async function loadData() {
-    sessionId++;
-    const currentSess = sessionId;
-    if(ws) { ws.close(); ws = null; }
+let currentPrice = 95000.00;
+let lastTickTime = Date.now();
+let currentCandle = null;
+let candleInterval = 60 * 1000; // 1 минута свечи
+let nextCandleTime = 0;
 
-    try {
-        const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${INTERVAL}&limit=200`);
-        const data = await r.json();
+// Инициализация истории (чтобы график не был пустым)
+function initHistory() {
+    const data = [];
+    let time = Math.floor(Date.now() / 1000) - (100 * 60); // 100 минут назад
+    let price = currentPrice;
 
-        const cData = [];
-        const vData = [];
+    for (let i = 0; i < 100; i++) {
+        const open = price;
+        // Генерируем случайную волатильность для истории
+        const change = (Math.random() - 0.5) * 200; 
+        const close = open + change;
+        const high = Math.max(open, close) + Math.random() * 50;
+        const low = Math.min(open, close) - Math.random() * 50;
         
-        data.forEach(k => {
-            const t = k[0]/1000;
-            const o=+k[1], h=+k[2], l=+k[3], c=+k[4];
-            cData.push({ time:t, open:o, high:h, low:l, close:c });
-            
-            // Расчет Net Volume
-            const buyVol = +k[10]; // Taker buy base asset volume
-            const totalVol = +k[7]; // Quote asset volume (примерно) или используем k[5] volume
-            // Упрощенная формула дельты для визуализации
-            const net = (2 * (+k[10]) - (+k[7])); 
-            
-            vData.push({ 
-                time:t, 
-                value: net, 
-                color: net >= 0 ? '#1fc77b' : '#e04b4b' 
-            });
-        });
-
-        if(cData.length) lastPrice = cData[cData.length-1].close;
-
-        candles.setData(cData);
-        volumeSeries.setData(vData);
-        priceChart.timeScale().fitContent();
-
-        // Запуск сокета
-        ws = new WebSocket(`wss://stream.binance.com:9443/ws/btcusdt@kline_${INTERVAL}`);
-        ws.onmessage = e => {
-            if(currentSess !== sessionId) return;
-            const msg = JSON.parse(e.data);
-            const k = msg.k;
-            const t = Math.floor(k.t/1000);
-            const c = +k.c;
-            lastPrice = c;
-
-            candles.update({ time:t, open:+k.o, high:+k.h, low:+k.l, close:c });
-            
-            const net = (2 * (+k.Q) - (+k.q)); // Используем Quote volume для дельты
-            volumeSeries.update({ time:t, value:net, color: net>=0?'#1fc77b':'#e04b4b' });
-
-            updatePnL(); // Обновляем цифры PnL каждую секунду
-        };
-
-    } catch(err) {
-        console.log(err);
-        alert("Ошибка загрузки данных");
+        data.push({ time, open, high, low, close });
+        price = close;
+        time += 60;
     }
+    
+    currentPrice = price;
+    candleSeries.setData(data);
+    
+    // Подготовка первой живой свечи
+    nextCandleTime = (time + 60) * 1000;
+    currentCandle = {
+        time: time + 60,
+        open: currentPrice,
+        high: currentPrice,
+        low: currentPrice,
+        close: currentPrice
+    };
 }
 
-function setTF(tf) {
-    if(INTERVAL === tf) return;
-    INTERVAL = tf;
-    document.querySelectorAll('.tf-buttons button').forEach(b => b.classList.remove('active'));
-    event.target.classList.add('active');
-    loadData();
+// === СЕРДЦЕ СИМУЛЯЦИИ ===
+// Функция вызывается каждые 100мс
+let momentum = 0; // Инерция движения
+
+function tick() {
+    const now = Date.now();
+
+    // 1. Смена свечи, если время пришло
+    if (now >= nextCandleTime) {
+        // Фиксируем текущую
+        nextCandleTime = now + candleInterval;
+        // Новая свеча
+        const t = Math.floor(now / 1000);
+        currentCandle = {
+            time: t,
+            open: currentPrice,
+            high: currentPrice,
+            low: currentPrice,
+            close: currentPrice
+        };
+    }
+
+    // 2. Расчет движения цены (Random Walk + Momentum)
+    // Базовая волатильность
+    let delta = (Math.random() - 0.5) * 30; // +/- 15 долларов за тик
+    
+    // Эффект "Толпы/Инерции": если цена шла вверх, она склонна продолжить
+    momentum = momentum * 0.9 + delta * 0.1;
+    
+    // Случайные "Импульсы" (Крупные покупки/продажи)
+    if(Math.random() < 0.05) { // 5% шанс на резкий рывок
+        delta += (Math.random() - 0.5) * 150;
+    }
+
+    currentPrice += delta + momentum;
+
+    // 3. Обновление свечи
+    currentCandle.close = currentPrice;
+    currentCandle.high = Math.max(currentCandle.high, currentPrice);
+    currentCandle.low = Math.min(currentCandle.low, currentPrice);
+
+    // 4. Отрисовка
+    candleSeries.update(currentCandle);
+
+    // 5. Просчет торговой логики
+    updateTradingLogic();
 }
+
+// Запускаем "тикер" (10 раз в секунду)
+setInterval(tick, 100);
 
 /* ==========================================
-   4. ТОРГОВАЯ ЛОГИКА (Engine)
+   4. ТОРГОВАЯ ЛОГИКА
    ========================================== */
 let balance = 10.00;
 const LEVERAGE = 150;
-let position = null; // { side: 'long'|'short', entry: 0, notional: 0, lines: [] }
+let position = null; // { side, entry, notional, liq, lines:[] }
 
-// DOM Элементы
+// UI Elements
 const elBal = document.getElementById('ui-bal');
 const elPnl = document.getElementById('ui-pnl');
 const elActions = document.getElementById('action-area');
-const elReset = document.getElementById('reset-area');
+const elResetScreen = document.getElementById('reset-screen');
 
-// 1. ОТКРЫТИЕ ПОЗИЦИИ
 function openPos(side) {
-    if(position || balance < 1) return;
+    if(position || balance <= 0) return;
 
-    const entry = lastPrice;
-    const margin = balance; // Входим на всю котлету
-    const notional = margin * LEVERAGE;
+    const entry = currentPrice;
+    const notional = balance * LEVERAGE;
     
-    // Считаем Ликвидацию
-    // Long: entry - (entry / lev) * 0.95 (чуть раньше нуля)
-    let liq = 0;
-    if(side === 'long') liq = entry * (1 - 1/LEVERAGE);
-    else liq = entry * (1 + 1/LEVERAGE);
+    // Ликвидация очень близко (плечо 150)
+    // Long Liq: Price * (1 - 1/150)
+    let liqPrice = 0;
+    if(side === 'long') liqPrice = entry * (1 - 0.9/LEVERAGE); // Чуть строже (0.9)
+    else liqPrice = entry * (1 + 0.9/LEVERAGE);
 
     position = {
-        side: side,
-        entry: entry,
-        margin: margin,
-        notional: notional,
-        liq: liq,
-        lines: []
+        side, entry, notional, liq: liqPrice, lines: []
     };
 
-    // Рисуем линии
-    // Линия входа (Зеленая пунктирная)
-    const lineEntry = priceChart.addPriceLine({
-        price: entry,
-        color: '#1fc77b',
-        lineWidth: 2,
-        lineStyle: LightweightCharts.LineStyle.Dotted,
-        axisLabelVisible: true,
-        title: 'ENTRY'
-    });
-    
-    // Линия Ликвидации (Красная пунктирная)
-    const lineLiq = priceChart.addPriceLine({
-        price: liq,
-        color: '#e04b4b',
-        lineWidth: 2,
-        lineStyle: LightweightCharts.LineStyle.Dotted,
-        axisLabelVisible: true,
-        title: 'LIQ'
-    });
+    // Линии на графике
+    position.lines.push(chart.addPriceLine({
+        price: entry, color: '#f0b90b', lineWidth: 2, lineStyle: 2, title: 'ENTRY'
+    }));
+    position.lines.push(chart.addPriceLine({
+        price: liqPrice, color: '#e04b4b', lineWidth: 2, lineStyle: 0, title: 'LIQ'
+    }));
 
-    position.lines.push(lineEntry, lineLiq);
-
-    renderUI();
+    renderControls();
 }
 
-// 2. ЗАКРЫТИЕ ПОЗИЦИИ (Фиксация прибыли)
 function closePos() {
     if(!position) return;
-
-    // Считаем финальный PnL
-    const finalPnL = calculatePnLValue();
-    
-    // Обновляем баланс
-    balance = balance + finalPnL;
+    const pnl = calcPnL();
+    balance += pnl;
     if(balance < 0) balance = 0;
 
-    // Чистим всё
-    removePositionLines();
-    position = null;
-    
-    // Обновляем UI
+    clearPosition();
     elBal.textContent = balance.toFixed(2);
-    elPnl.textContent = "0.00";
-    elPnl.className = "stat-val pnl-neu";
-    
-    renderUI();
+    renderControls();
 }
 
-// 3. РАСЧЕТ PNL (МАТЕМАТИКА)
-function calculatePnLValue() {
+function calcPnL() {
     if(!position) return 0;
-    const priceDiff = (lastPrice - position.entry) / position.entry;
-    
-    let pnl = 0;
-    if(position.side === 'long') {
-        pnl = position.notional * priceDiff;
-    } else {
-        pnl = position.notional * (-priceDiff);
-    }
-    return pnl;
+    const diff = (currentPrice - position.entry) / position.entry;
+    return position.side === 'long' 
+        ? position.notional * diff 
+        : position.notional * -diff;
 }
 
-// 4. ОБНОВЛЕНИЕ В РЕАЛЬНОМ ВРЕМЕНИ (LOOP)
-function updatePnL() {
+function updateTradingLogic() {
     if(!position) return;
 
-    const pnl = calculatePnLValue();
+    const pnl = calcPnL();
     const equity = balance + pnl;
 
-    // Визуал PnL
+    // UI PnL
     elPnl.textContent = (pnl > 0 ? "+" : "") + pnl.toFixed(2);
-    if(pnl > 0) elPnl.className = "stat-val pnl-pos";
-    else if(pnl < 0) elPnl.className = "stat-val pnl-neg";
-    else elPnl.className = "stat-val pnl-neu";
+    elPnl.className = "stat-val " + (pnl >= 0 ? "pnl-pos" : "pnl-neg");
 
-    // Проверка ликвидации
-    let isDead = false;
-    if(position.side === 'long' && lastPrice <= position.liq) isDead = true;
-    if(position.side === 'short' && lastPrice >= position.liq) isDead = true;
+    // LIQUIDATION CHECK
+    let isLiq = false;
+    if(position.side === 'long' && currentPrice <= position.liq) isLiq = true;
+    if(position.side === 'short' && currentPrice >= position.liq) isLiq = true;
+    if(equity <= 0) isLiq = true;
 
-    // Если баланс ушел в ноль
-    if(isDead || equity <= 0) {
-        alert("LIQUIDATED!");
+    if(isLiq) {
         balance = 0;
-        removePositionLines();
-        position = null;
+        clearPosition();
         elBal.textContent = "0.00";
         elPnl.textContent = "0.00";
-        renderUI();
+        elResetScreen.style.display = 'flex'; // Показываем экран смерти
     }
 }
 
-function removePositionLines() {
-    if(position && position.lines) {
-        position.lines.forEach(l => priceChart.removePriceLine(l));
+function clearPosition() {
+    if(position) {
+        position.lines.forEach(l => chart.removePriceLine(l));
     }
+    position = null;
+    elPnl.textContent = "0.00";
+    elPnl.className = "stat-val pnl-neu";
 }
 
-// 5. ОТРИСОВКА КНОПОК
-function renderUI() {
-    // Если баланс слит
-    if(balance < 1 && !position) {
-        elActions.innerHTML = `<button class="btn" disabled>GAME OVER</button>`;
-        elReset.style.display = 'block';
-        return;
-    }
-    elReset.style.display = 'none';
-
-    // Если нет позиции -> Кнопки Buy/Sell
+function renderControls() {
     if(!position) {
         elActions.innerHTML = `
             <button class="btn btn-long" onclick="openPos('long')">LONG</button>
             <button class="btn btn-short" onclick="openPos('short')">SHORT</button>
         `;
-    } 
-    // Если LONG -> Кнопка Sell становится CLOSE
-    else if(position.side === 'long') {
+    } else if (position.side === 'long') {
         elActions.innerHTML = `
-            <button class="btn" disabled style="font-size:12px;">ENTRY<br>${position.entry.toFixed(1)}</button>
-            <button class="btn btn-short" onclick="closePos()">CLOSE LONG</button>
+            <button class="btn" disabled>ENTRY ${position.entry.toFixed(0)}</button>
+            <button class="btn btn-short" onclick="closePos()">CLOSE</button>
         `;
-    }
-    // Если SHORT -> Кнопка Buy становится CLOSE
-    else {
+    } else {
         elActions.innerHTML = `
-            <button class="btn btn-long" onclick="closePos()">CLOSE SHORT</button>
-            <button class="btn" disabled style="font-size:12px;">ENTRY<br>${position.entry.toFixed(1)}</button>
+            <button class="btn btn-long" onclick="closePos()">CLOSE</button>
+            <button class="btn" disabled>ENTRY ${position.entry.toFixed(0)}</button>
         `;
     }
 }
@@ -506,12 +416,17 @@ function renderUI() {
 function resetGame() {
     balance = 10.00;
     elBal.textContent = "10.00";
-    renderUI();
+    elResetScreen.style.display = 'none';
+    
+    // Пересоздаем график чтобы было ощущение нового начала
+    initHistory();
+    chart.timeScale().fitContent();
+    renderControls();
 }
 
-// Старт
-loadData();
-renderUI();
+// Запуск
+initHistory();
+renderControls();
 
 </script>
 </body>
