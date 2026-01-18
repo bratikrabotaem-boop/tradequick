@@ -3,29 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Chaos Trading Sim v2</title>
+<title>Chaos Trading Sim v3</title>
 
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
 
 <style>
-/* ===== 1. ОСНОВНОЙ СТИЛЬ ===== */
+/* ===== 1. СТИЛЬ (Скролл разрешен) ===== */
 body {
     margin: 0;
     background: #121417;
     color: #e6e6e6;
     font-family: -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
-    /* --- ИЗМЕНЕНИЕ: РАЗРЕШАЕМ СКРОЛЛ --- */
-    overflow-y: auto; 
+    overflow-y: auto; /* РАЗРЕШАЕМ СКРОЛЛ */
     min-height: 100vh;
     display: block;
-    padding-bottom: 40px; /* Отступ снизу для удобства */
+    padding-bottom: 40px;
 }
 
 .wrapper {
     max-width: 800px;
     margin: 0 auto;
     width: 100%;
-    /* --- ИЗМЕНЕНИЕ: ОБЫЧНЫЙ БЛОК --- */
     height: auto;
     display: block;
     padding: 10px;
@@ -46,10 +44,9 @@ header {
     border-radius: 4px; font-size: 10px; font-weight: 700; vertical-align: middle;
 }
 
-/* ===== 3. ГРАФИК ===== */
+/* ===== 3. ГРАФИК (Высота 500px) ===== */
 #chart-area {
-    /* --- ИЗМЕНЕНИЕ: ФИКСИРОВАННАЯ ВЫСОТА (чтобы был скролл) --- */
-    height: 500px; 
+    height: 500px; /* Фиксированная высота */
     width: 100%;
     border-radius: 12px;
     overflow: hidden;
@@ -84,7 +81,6 @@ header {
     border-radius: 16px;
     padding: 15px 20px;
     box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
-    /* margin-bottom: 20px; уже есть паддинг у body */
 }
 
 .stats-row {
@@ -95,7 +91,7 @@ header {
 
 .stat-box { display: flex; flex-direction: column; }
 .stat-label { font-size: 11px; color: #888; text-transform: uppercase; font-weight: 600; }
-.stat-val { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
+.stat-val { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; transition: color 0.3s;}
 
 .pnl-pos { color: #1fc77b; }
 .pnl-neg { color: #e04b4b; }
@@ -121,11 +117,9 @@ header {
 }
 .btn:active { transform: scale(0.96); }
 
-/* Стили кнопок */
 .btn-green { background: #1fc77b; color: #000; box-shadow: 0 4px 12px rgba(31, 199, 123, 0.2); }
 .btn-red { background: #e04b4b; color: #fff; box-shadow: 0 4px 12px rgba(224, 75, 75, 0.2); }
 
-/* Неактивная кнопка */
 .btn-disabled {
     background: #2a2d33 !important;
     color: #6b7280 !important;
@@ -181,14 +175,13 @@ header {
 document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
 
 /* ==========================================
-   2. ГРАФИК (Lightweight Charts)
+   2. ГРАФИК
    ========================================== */
 const chart = LightweightCharts.createChart(document.getElementById('price'), {
     layout: { background: { color: '#121417' }, textColor: '#9ca3af' },
     grid: { vertLines: { color: '#1f2937' }, horzLines: { color: '#1f2937' } },
     timeScale: { timeVisible: true, secondsVisible: true, borderColor: '#1f2937' },
     crosshair: { mode: 0 },
-    // ВАЖНО: Разрешаем вертикальный скролл страницы пальцем по графику
     handleScroll: { vertTouchDrag: false, horzTouchDrag: true },
     handleScale: { pinch: true, axisPressedMouseMove: true },
 });
@@ -205,15 +198,13 @@ new ResizeObserver(e => {
 }).observe(document.getElementById('chart-area'));
 
 /* ==========================================
-   3. ГЕНЕРАТОР ХАОСА (РЫНОК)
+   3. РЫНОК (CHAOS ENGINE)
    ========================================== */
 let currentPrice = 95000.00;
-let candleInterval = 60; // seconds
 let nextCandleTime = 0;
 let currentCandle = null;
 let momentum = 0;
 
-// Инициализация истории
 function initMarket() {
     const data = [];
     let time = Math.floor(Date.now()/1000) - (100*60);
@@ -239,25 +230,17 @@ function initMarket() {
 function tick() {
     const now = Math.floor(Date.now()/1000);
     
-    // Новая свеча
     if(now >= nextCandleTime) {
         nextCandleTime += 60;
-        currentCandle = { 
-            time: nextCandleTime, 
-            open: currentPrice, high: currentPrice, low: currentPrice, close: currentPrice 
-        };
+        currentCandle = { time: nextCandleTime, open: currentPrice, high: currentPrice, low: currentPrice, close: currentPrice };
     }
 
-    // Движение цены
-    let delta = (Math.random() - 0.5) * 25; // Шум
-    momentum = momentum * 0.9 + delta * 0.1; // Инерция
-    
-    // Всплески волатильности (Китовые движения)
+    let delta = (Math.random() - 0.5) * 25;
+    momentum = momentum * 0.9 + delta * 0.1;
     if(Math.random() < 0.05) delta += (Math.random()-0.5) * 200;
 
     currentPrice += delta + momentum;
 
-    // Обновляем свечу
     currentCandle.close = currentPrice;
     currentCandle.high = Math.max(currentCandle.high, currentPrice);
     currentCandle.low = Math.min(currentCandle.low, currentPrice);
@@ -269,11 +252,11 @@ function tick() {
 setInterval(tick, 100);
 
 /* ==========================================
-   4. ТОРГОВАЯ МЕХАНИКА
+   4. ТОРГОВАЯ ЛОГИКА (ИСПРАВЛЕННАЯ)
    ========================================== */
-let balance = 10.00;
+let balance = 10.00; // Число
 const LEVERAGE = 150;
-let position = null; // { side, entry, notional, liq, lines:[] }
+let position = null;
 
 const elBal = document.getElementById('ui-bal');
 const elPnl = document.getElementById('ui-pnl');
@@ -285,42 +268,45 @@ function openPos(side) {
 
     const entry = currentPrice;
     const notional = balance * LEVERAGE;
-    
-    // Расчет ликвидации
     const liqDist = entry * (1/LEVERAGE);
-    const liq = side === 'long' 
-        ? entry - (liqDist * 0.9) 
-        : entry + (liqDist * 0.9);
+    const liq = side === 'long' ? entry - (liqDist * 0.9) : entry + (liqDist * 0.9);
 
     position = { side, entry, notional, liq, lines: [] };
 
-    // Линии
-    position.lines.push(chart.addPriceLine({
-        price: entry, color: '#f0b90b', lineWidth: 2, lineStyle: 2, title: 'ENTRY'
-    }));
-    position.lines.push(chart.addPriceLine({
-        price: liq, color: '#e04b4b', lineWidth: 2, lineStyle: 0, title: 'LIQ'
-    }));
+    position.lines.push(chart.addPriceLine({ price: entry, color: '#f0b90b', lineWidth: 2, lineStyle: 2, title: 'ENTRY' }));
+    position.lines.push(chart.addPriceLine({ price: liq, color: '#e04b4b', lineWidth: 2, lineStyle: 0, title: 'LIQ' }));
 
     renderControls();
 }
 
+/* --- ГЛАВНОЕ ИСПРАВЛЕНИЕ ЗДЕСЬ --- */
 function closePos() {
     if(!position) return;
     
-    // 1. Считаем PnL
-    const pnl = calcPnL();
+    // 1. Считаем текущий PnL (как число)
+    let profit = Number(calcPnL());
     
-    // 2. Обновляем баланс
-    balance = parseFloat(balance) + parseFloat(pnl);
+    // Защита от NaN
+    if (isNaN(profit)) profit = 0;
+
+    // 2. Явно преобразуем баланс в число и прибавляем
+    balance = Number(balance) + profit;
+    
+    // Защита от отрицательного баланса
     if(balance < 0) balance = 0;
+
+    // 3. Обновляем визуально баланс
+    elBal.textContent = balance.toFixed(2);
     
-    // 3. Чистим
+    // Эффект вспышки для наглядности (Зеленый если +, Красный если -)
+    elBal.style.color = profit >= 0 ? '#1fc77b' : '#e04b4b';
+    setTimeout(() => { elBal.style.color = '#e6e6e6'; }, 500);
+
+    // 4. Удаляем линии и позицию
     if(position.lines) position.lines.forEach(l => chart.removePriceLine(l));
     position = null;
     
-    // 4. Обновляем UI
-    elBal.textContent = balance.toFixed(2);
+    // 5. Сброс PnL в UI
     elPnl.textContent = "0.00";
     elPnl.className = "stat-val pnl-neu";
     
@@ -341,11 +327,10 @@ function updateGameLoop() {
     const pnl = calcPnL();
     const equity = balance + pnl;
 
-    // UI PnL
     elPnl.textContent = (pnl > 0 ? "+" : "") + pnl.toFixed(2);
     elPnl.className = "stat-val " + (pnl >= 0 ? "pnl-pos" : "pnl-neg");
 
-    // Проверка ликвидации
+    // Ликвидация
     let isLiq = false;
     if(position.side === 'long' && currentPrice <= position.liq) isLiq = true;
     if(position.side === 'short' && currentPrice >= position.liq) isLiq = true;
@@ -362,43 +347,20 @@ function updateGameLoop() {
 }
 
 function renderControls() {
-    // 1. Нет позиции
     if(!position) {
         elActions.innerHTML = `
-            <button class="btn btn-green" onclick="openPos('long')">
-                LONG
-                <span class="btn-sub">BUY</span>
-            </button>
-            <button class="btn btn-red" onclick="openPos('short')">
-                SHORT
-                <span class="btn-sub">SELL</span>
-            </button>
+            <button class="btn btn-green" onclick="openPos('long')">LONG <span class="btn-sub">BUY</span></button>
+            <button class="btn btn-red" onclick="openPos('short')">SHORT <span class="btn-sub">SELL</span></button>
         `;
-    } 
-    // 2. Есть LONG позиция
-    else if(position.side === 'long') {
+    } else if(position.side === 'long') {
         elActions.innerHTML = `
-            <button class="btn btn-disabled" disabled>
-                LONG
-                <span class="btn-sub">@${position.entry.toFixed(0)}</span>
-            </button>
-            <button class="btn btn-red" onclick="closePos()">
-                CLOSE LONG
-                <span class="btn-sub">SELL TO CLOSE</span>
-            </button>
+            <button class="btn btn-disabled" disabled>LONG <span class="btn-sub">@${position.entry.toFixed(0)}</span></button>
+            <button class="btn btn-red" onclick="closePos()">CLOSE LONG <span class="btn-sub">TAKE PROFIT</span></button>
         `;
-    } 
-    // 3. Есть SHORT позиция
-    else {
+    } else {
         elActions.innerHTML = `
-            <button class="btn btn-green" onclick="closePos()">
-                CLOSE SHORT
-                <span class="btn-sub">BUY TO CLOSE</span>
-            </button>
-            <button class="btn btn-disabled" disabled>
-                SHORT
-                <span class="btn-sub">@${position.entry.toFixed(0)}</span>
-            </button>
+            <button class="btn btn-green" onclick="closePos()">CLOSE SHORT <span class="btn-sub">TAKE PROFIT</span></button>
+            <button class="btn btn-disabled" disabled>SHORT <span class="btn-sub">@${position.entry.toFixed(0)}</span></button>
         `;
     }
 }
