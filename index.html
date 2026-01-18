@@ -14,19 +14,20 @@ body {
     background: #121417;
     color: #e6e6e6;
     font-family: -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
-    overflow: hidden; /* Блокируем скролл */
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
+    /* --- ИЗМЕНЕНИЕ: РАЗРЕШАЕМ СКРОЛЛ --- */
+    overflow-y: auto; 
+    min-height: 100vh;
+    display: block;
+    padding-bottom: 40px; /* Отступ снизу для удобства */
 }
 
 .wrapper {
     max-width: 800px;
     margin: 0 auto;
     width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
+    /* --- ИЗМЕНЕНИЕ: ОБЫЧНЫЙ БЛОК --- */
+    height: auto;
+    display: block;
     padding: 10px;
     box-sizing: border-box;
 }
@@ -37,7 +38,6 @@ header {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 10px;
-    flex-shrink: 0;
 }
 .title { font-size: 18px; font-weight: 800; color: #fff; }
 .sub { font-size: 12px; color: #6b7280; margin-top: 2px; }
@@ -48,9 +48,9 @@ header {
 
 /* ===== 3. ГРАФИК ===== */
 #chart-area {
-    flex: 1;
+    /* --- ИЗМЕНЕНИЕ: ФИКСИРОВАННАЯ ВЫСОТА (чтобы был скролл) --- */
+    height: 500px; 
     width: 100%;
-    min-height: 0;
     border-radius: 12px;
     overflow: hidden;
     position: relative;
@@ -84,7 +84,7 @@ header {
     border-radius: 16px;
     padding: 15px 20px;
     box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
-    flex-shrink: 0;
+    /* margin-bottom: 20px; уже есть паддинг у body */
 }
 
 .stats-row {
@@ -125,7 +125,7 @@ header {
 .btn-green { background: #1fc77b; color: #000; box-shadow: 0 4px 12px rgba(31, 199, 123, 0.2); }
 .btn-red { background: #e04b4b; color: #fff; box-shadow: 0 4px 12px rgba(224, 75, 75, 0.2); }
 
-/* Неактивная кнопка (показывает вход) */
+/* Неактивная кнопка */
 .btn-disabled {
     background: #2a2d33 !important;
     color: #6b7280 !important;
@@ -188,6 +188,7 @@ const chart = LightweightCharts.createChart(document.getElementById('price'), {
     grid: { vertLines: { color: '#1f2937' }, horzLines: { color: '#1f2937' } },
     timeScale: { timeVisible: true, secondsVisible: true, borderColor: '#1f2937' },
     crosshair: { mode: 0 },
+    // ВАЖНО: Разрешаем вертикальный скролл страницы пальцем по графику
     handleScroll: { vertTouchDrag: false, horzTouchDrag: true },
     handleScale: { pinch: true, axisPressedMouseMove: true },
 });
@@ -286,7 +287,6 @@ function openPos(side) {
     const notional = balance * LEVERAGE;
     
     // Расчет ликвидации
-    // Long: Liq < Entry. Short: Liq > Entry.
     const liqDist = entry * (1/LEVERAGE);
     const liq = side === 'long' 
         ? entry - (liqDist * 0.9) 
@@ -311,7 +311,7 @@ function closePos() {
     // 1. Считаем PnL
     const pnl = calcPnL();
     
-    // 2. Обновляем баланс (parseFloat для надежности)
+    // 2. Обновляем баланс
     balance = parseFloat(balance) + parseFloat(pnl);
     if(balance < 0) balance = 0;
     
@@ -407,7 +407,7 @@ function resetGame() {
     balance = 10.00;
     elBal.textContent = "10.00";
     elReset.style.display = 'none';
-    initMarket(); // Перезапуск рынка
+    initMarket();
     chart.timeScale().fitContent();
     renderControls();
 }
