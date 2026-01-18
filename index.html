@@ -3,21 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Chaos Trading Sim v3</title>
+<title>Chaos Sim Stable</title>
 
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
 
 <style>
-/* ===== 1. СТИЛЬ (Скролл разрешен) ===== */
+/* ===== 1. СТИЛЬ (Скролл сохранен) ===== */
 body {
     margin: 0;
     background: #121417;
     color: #e6e6e6;
     font-family: -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
-    overflow-y: auto; /* РАЗРЕШАЕМ СКРОЛЛ */
+    overflow-y: auto; 
     min-height: 100vh;
     display: block;
     padding-bottom: 40px;
+    -webkit-tap-highlight-color: transparent; /* Убирает синий квадрат при нажатии */
 }
 
 .wrapper {
@@ -44,9 +45,9 @@ header {
     border-radius: 4px; font-size: 10px; font-weight: 700; vertical-align: middle;
 }
 
-/* ===== 3. ГРАФИК (Высота 500px) ===== */
+/* ===== 3. ГРАФИК ===== */
 #chart-area {
-    height: 500px; /* Фиксированная высота */
+    height: 500px;
     width: 100%;
     border-radius: 12px;
     overflow: hidden;
@@ -99,6 +100,7 @@ header {
 
 .buttons-row { display: flex; gap: 12px; }
 
+/* Статичные кнопки */
 .btn {
     flex: 1;
     height: 54px;
@@ -111,23 +113,26 @@ header {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    transition: transform 0.1s;
+    transition: transform 0.1s, background 0.2s, opacity 0.2s;
     cursor: pointer;
     line-height: 1.1;
+    user-select: none; /* Чтобы текст не выделялся при быстром нажатии */
 }
 .btn:active { transform: scale(0.96); }
 
-.btn-green { background: #1fc77b; color: #000; box-shadow: 0 4px 12px rgba(31, 199, 123, 0.2); }
-.btn-red { background: #e04b4b; color: #fff; box-shadow: 0 4px 12px rgba(224, 75, 75, 0.2); }
-
+/* Цветовые модификаторы */
+.btn-green { background: #1fc77b; color: #000; box-shadow: 0 4px 12px rgba(31, 199, 123, 0.2); opacity: 1; }
+.btn-red { background: #e04b4b; color: #fff; box-shadow: 0 4px 12px rgba(224, 75, 75, 0.2); opacity: 1; }
 .btn-disabled {
     background: #2a2d33 !important;
     color: #6b7280 !important;
     box-shadow: none !important;
-    cursor: not-allowed;
+    cursor: default; /* Не показывать палец */
     border: 1px solid #374151;
+    opacity: 1;
 }
-.btn-sub { font-size: 10px; font-weight: 600; opacity: 0.7; }
+
+.btn-sub { font-size: 10px; font-weight: 600; opacity: 0.7; margin-top: 2px; }
 
 </style>
 </head>
@@ -163,8 +168,14 @@ header {
             </div>
         </div>
 
-        <div class="buttons-row" id="action-area">
-            </div>
+        <div class="buttons-row">
+            <button id="btn-left" class="btn btn-green" onclick="handleLeftClick()">
+                LONG <span class="btn-sub">BUY</span>
+            </button>
+            <button id="btn-right" class="btn btn-red" onclick="handleRightClick()">
+                SHORT <span class="btn-sub">SELL</span>
+            </button>
+        </div>
     </div>
 </div>
 
@@ -252,16 +263,41 @@ function tick() {
 setInterval(tick, 100);
 
 /* ==========================================
-   4. ТОРГОВАЯ ЛОГИКА (ИСПРАВЛЕННАЯ)
+   4. ТОРГОВАЯ ЛОГИКА (НОВАЯ СИСТЕМА)
    ========================================== */
-let balance = 10.00; // Число
+let balance = 10.00;
 const LEVERAGE = 150;
 let position = null;
 
 const elBal = document.getElementById('ui-bal');
 const elPnl = document.getElementById('ui-pnl');
-const elActions = document.getElementById('action-area');
 const elReset = document.getElementById('reset-screen');
+
+// КНОПКИ
+const btnLeft = document.getElementById('btn-left');
+const btnRight = document.getElementById('btn-right');
+
+// === ОБРАБОТЧИКИ НАЖАТИЙ ===
+
+function handleLeftClick() {
+    // Левая кнопка: Либо открыть LONG, либо закрыть SHORT
+    if (!position) {
+        openPos('long');
+    } else if (position.side === 'short') {
+        closePos();
+    }
+}
+
+function handleRightClick() {
+    // Правая кнопка: Либо открыть SHORT, либо закрыть LONG
+    if (!position) {
+        openPos('short');
+    } else if (position.side === 'long') {
+        closePos();
+    }
+}
+
+// === ФУНКЦИИ ===
 
 function openPos(side) {
     if(position || balance <= 0) return;
@@ -276,41 +312,36 @@ function openPos(side) {
     position.lines.push(chart.addPriceLine({ price: entry, color: '#f0b90b', lineWidth: 2, lineStyle: 2, title: 'ENTRY' }));
     position.lines.push(chart.addPriceLine({ price: liq, color: '#e04b4b', lineWidth: 2, lineStyle: 0, title: 'LIQ' }));
 
-    renderControls();
+    updateButtonsUI();
 }
 
-/* --- ГЛАВНОЕ ИСПРАВЛЕНИЕ ЗДЕСЬ --- */
 function closePos() {
     if(!position) return;
     
-    // 1. Считаем текущий PnL (как число)
+    // 1. Фиксация прибыли
     let profit = Number(calcPnL());
-    
-    // Защита от NaN
     if (isNaN(profit)) profit = 0;
 
-    // 2. Явно преобразуем баланс в число и прибавляем
     balance = Number(balance) + profit;
-    
-    // Защита от отрицательного баланса
     if(balance < 0) balance = 0;
 
-    // 3. Обновляем визуально баланс
+    // 2. Обновление баланса
     elBal.textContent = balance.toFixed(2);
     
-    // Эффект вспышки для наглядности (Зеленый если +, Красный если -)
-    elBal.style.color = profit >= 0 ? '#1fc77b' : '#e04b4b';
-    setTimeout(() => { elBal.style.color = '#e6e6e6'; }, 500);
+    // Вспышка цвета
+    const flashColor = profit >= 0 ? '#1fc77b' : '#e04b4b';
+    elBal.style.color = flashColor;
+    setTimeout(() => { elBal.style.color = '#e6e6e6'; }, 600);
 
-    // 4. Удаляем линии и позицию
+    // 3. Удаление линий
     if(position.lines) position.lines.forEach(l => chart.removePriceLine(l));
     position = null;
     
-    // 5. Сброс PnL в UI
+    // 4. Сброс PnL
     elPnl.textContent = "0.00";
     elPnl.className = "stat-val pnl-neu";
     
-    renderControls();
+    updateButtonsUI();
 }
 
 function calcPnL() {
@@ -330,7 +361,7 @@ function updateGameLoop() {
     elPnl.textContent = (pnl > 0 ? "+" : "") + pnl.toFixed(2);
     elPnl.className = "stat-val " + (pnl >= 0 ? "pnl-pos" : "pnl-neg");
 
-    // Ликвидация
+    // LIQUIDATION
     let isLiq = false;
     if(position.side === 'long' && currentPrice <= position.liq) isLiq = true;
     if(position.side === 'short' && currentPrice >= position.liq) isLiq = true;
@@ -346,37 +377,56 @@ function updateGameLoop() {
     }
 }
 
-function renderControls() {
-    if(!position) {
-        elActions.innerHTML = `
-            <button class="btn btn-green" onclick="openPos('long')">LONG <span class="btn-sub">BUY</span></button>
-            <button class="btn btn-red" onclick="openPos('short')">SHORT <span class="btn-sub">SELL</span></button>
-        `;
-    } else if(position.side === 'long') {
-        elActions.innerHTML = `
-            <button class="btn btn-disabled" disabled>LONG <span class="btn-sub">@${position.entry.toFixed(0)}</span></button>
-            <button class="btn btn-red" onclick="closePos()">CLOSE LONG <span class="btn-sub">TAKE PROFIT</span></button>
-        `;
-    } else {
-        elActions.innerHTML = `
-            <button class="btn btn-green" onclick="closePos()">CLOSE SHORT <span class="btn-sub">TAKE PROFIT</span></button>
-            <button class="btn btn-disabled" disabled>SHORT <span class="btn-sub">@${position.entry.toFixed(0)}</span></button>
-        `;
+function updateButtonsUI() {
+    // 1. Нет позиции (Обычное состояние)
+    if (!position) {
+        // Левая кнопка (LONG)
+        btnLeft.className = "btn btn-green";
+        btnLeft.innerHTML = `LONG <span class="btn-sub">BUY</span>`;
+        btnLeft.disabled = false;
+
+        // Правая кнопка (SHORT)
+        btnRight.className = "btn btn-red";
+        btnRight.innerHTML = `SHORT <span class="btn-sub">SELL</span>`;
+        btnRight.disabled = false;
+    } 
+    // 2. Позиция LONG
+    else if (position.side === 'long') {
+        // Левая (Вход) - Отключена
+        btnLeft.className = "btn btn-disabled";
+        btnLeft.innerHTML = `LONG <span class="btn-sub">@${position.entry.toFixed(0)}</span>`;
+        // Важно: мы не ставим disabled=true, чтобы клик не блокировался системой, 
+        // но в функции handleLeftClick стоит проверка.
+        
+        // Правая (Выход) - Красная кнопка закрытия
+        btnRight.className = "btn btn-red";
+        btnRight.innerHTML = `CLOSE LONG <span class="btn-sub">TAKE PROFIT</span>`;
+    }
+    // 3. Позиция SHORT
+    else if (position.side === 'short') {
+        // Левая (Выход) - Зеленая кнопка закрытия
+        btnLeft.className = "btn btn-green";
+        btnLeft.innerHTML = `CLOSE SHORT <span class="btn-sub">TAKE PROFIT</span>`;
+
+        // Правая (Вход) - Отключена
+        btnRight.className = "btn btn-disabled";
+        btnRight.innerHTML = `SHORT <span class="btn-sub">@${position.entry.toFixed(0)}</span>`;
     }
 }
 
 function resetGame() {
     balance = 10.00;
     elBal.textContent = "10.00";
+    elBal.style.color = "#e6e6e6";
     elReset.style.display = 'none';
     initMarket();
     chart.timeScale().fitContent();
-    renderControls();
+    updateButtonsUI();
 }
 
 // Запуск
 initMarket();
-renderControls();
+updateButtonsUI();
 
 </script>
 </body>
