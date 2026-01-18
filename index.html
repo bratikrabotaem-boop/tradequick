@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>BTC-USDT · Pro Trading Simulator</title>
+
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+
+<style>
+/* ===== BASIC STYLES ===== */
+body { margin:0; background:#121417; color:#e6e6e6; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+.wrapper { max-width:1100px; margin:0 auto; padding:10px; display:flex; flex-direction:column; height:100vh; box-sizing:border-box; }
+
+/* ===== HEADER & CONTROLS ===== */
+header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+.title-box { line-height:1.2; }
+.title { font-size:16px; font-weight:700; color:#fff; }
+.sub { font-size:12px; color:#6b7280; }
+
+.tf-buttons { display:flex; gap:5px; background:#1e2228; padding:3px; border-radius:6px; }
+.tf-buttons button { background:transparent; border:0; color:#888; padding:4px 10px; border-radius:4px; font-size:12px; cursor:pointer; font-weight:600; transition:0.2s; }
+.tf-buttons button:hover { color:#ccc; }
+.tf-buttons button.active { background:#363a45; color:#fff; }
+
+/* ===== CHARTS ===== */
+#charts-container { flex:1; display:flex; flex-direction:column; min-height:0; }
+#price { flex:3; width:100%; }
+#volume { flex:1; width:100%; margin-top:5px; }
+
+/* ===== TRADING PANEL ===== */
+.trade-panel {
+  margin-top:10px;
+  background:#1e2228;
+  padding:15px;
+  border-radius:8px;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
+  gap:15px;
+}
+
+.stats { display:flex; gap:20px; font-size:14px; }
+.stat-item { display:flex; flex-direction:column; }
+.stat-label { font-size:10px; color:#888; text-transform:uppercase; letter-spacing:0.5px; }
+.stat-val { font-weight:700; font-size:16px; font-variant-numeric: tabular-nums; }
+
+.actions { display:flex; gap:10px; }
+.btn {
+  border:0; border-radius:4px; padding:0 20px; height:40px; font-weight:700; cursor:pointer; font-size:14px; color:#000; transition:opacity 0.2s;
+  display:flex; align-items:center; justify-content:center;
+}
+.btn:active { opacity:0.8; }
+.btn:disabled { opacity:0.3; cursor:not-allowed; filter:grayscale(100%); }
+
+.btn-buy { background:#1fc77b; }
+.btn-sell { background:#e04b4b; }
+.btn-close { background:#555; color:#fff; }
+.btn-reset { background:transparent; border:1px solid #444; color:#888; height:30px; font-size:11px; margin-left:auto; }
+
+/* PnL Colors */
+.pnl-pos { color:#1fc77b; }
+.pnl-neg { color:#e04b4b; }
+.pnl-neu { color:#ccc; }
+
+/* Mobile Tweaks */
+@media (max-width: 600px) {
+  .trade-panel { flex-direction:column; align-items:stretch; }
+  .stats { justify-content:space-around; margin-bottom:10px; }
+  .actions { display:grid; grid-template-columns: 1fr 1fr; }
+  .btn-close { grid-column: span 2; }
+}
+</style>
+</head>
+
+<body>
+<div class="wrapper">
+  
+  <header>
+    <div class="title-box">
+      <div class="title">BTC/USDT</div>
+      <div class="sub">Net Volume • x150 Leverage</div>
+    </div>
+    <div class="tf-buttons">
+      <button onclick="setTF('15m')">15M</button>
+      <button onclick="setTF('5m')">5M</button>
+      <button onclick="setTF('1m')" class="active">1M</button>
+    </div>
+  </header>
+
+  <div id="charts-container">
+    <div id="price"></div>
+    <div id="volume"></div>
+  </div>
+
+  <div class="trade-panel">
+    <div class="stats">
+      <div class="stat-item">
+        <span class="stat-label">Balance</span>
+        <span class="stat-val" id="ui-bal">10.00</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">PnL (USDT)</span>
+        <span class="stat-val pnl-neu" id="ui-pnl">0.00</span>
+      </div>
+    </div>
+
+    <div class="actions" id="action-buttons">
+      <button class="btn btn-buy" onclick="openPos('long')">LONG</button>
+      <button class="btn btn-sell" onclick="openPos('short')">SHORT</button>
+    </div>
+    
+    <button class="btn btn-reset" onclick="resetGame()" style="display:none;" id="btn-reset">RESET DEP</button>
+  </div>
+
+</div>
+
+<script>
+/* ===== 1. CONFIG & UTILS ===== */
+['gesturestart','gesturechange','gestureend'].forEach(e=>{
+  document.addEventListener(e,ev=>ev.preventDefault(),{passive:false});
+});
+
+const formatTime = (time) => {
+  const d = new Date(time * 1000);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+};
+
+let INTERVAL = '1m';
+let ws = null;
+let sessionId = 0;
+let lastPrice = 0; // Сохраняем цену отдельно, не лезем в _data
+
+/* ===== 2. CHART INIT ===== */
+const commonOpts = {
+  layout:{ background:{color:'#121417'}, textColor:'#6b7280' },
+  grid:{ vertLines:{color:'#1e2228'}, horzLines:{color:'#1e2228'} },
+  timeScale:{ timeVisible:true, secondsVisible:false, borderColor:'#1e2228' },
+  crosshair: { mode: 1 }, // Magnet mode
+};
+
+const priceChart = LightweightCharts.createChart(document.getElementById('price'), {
+  ...commonOpts,
+  rightPriceScale:{ borderVisible:false },
+});
+const candles = priceChart.addCandlestickSeries({
+  upColor:'#1fc77b', downColor:'#e04b4b',
+  borderUpColor:'#1fc77b', borderDownColor:'#e04b4b',
+  wickUpColor:'#1fc77b', wickDownColor:'#e04b4b'
+});
+
+const volumeChart = LightweightCharts.createChart(document.getElementById('volume'), {
+  ...commonOpts,
+  rightPriceScale:{ borderVisible:false },
+});
+const volumeSeries = volumeChart.addHistogramSeries({
+  base:0, priceFormat:{type:'volume'}
+});
+
+// Auto Resize
+const resizeObserver = new ResizeObserver(entries => {
+  for (let entry of entries) {
+    if(entry.target.id === 'price') priceChart.resize(entry.contentRect.width, entry.contentRect.height);
+    if(entry.target.id === 'volume') volumeChart.resize(entry.contentRect.width, entry.contentRect.height);
+  }
+});
+resizeObserver.observe(document.getElementById('price'));
+resizeObserver.observe(document.getElementById('volume'));
+
+// Sync Charts
+const sync = (a, b) => {
+  let s = false;
+  a.timeScale().subscribeVisibleLogicalRangeChange(r => {
+    if(!s && r) { s=true; b.timeScale().setVisibleLogicalRange(r); s=false; }
+  });
+};
+sync(priceChart, volumeChart);
+sync(volumeChart, priceChart);
+
+
+/* ===== 3. DATA LOGIC ===== */
+async function loadData() {
+  sessionId++;
+  const currentSession = sessionId;
+  
+  if(ws) { ws.close(); ws = null; }
+
+  try {
+    const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${INTERVAL}&limit=300`);
+    const d = await r.json();
+
+    const cData = [];
+    const vData = [];
+    
+    d.forEach(k => {
+      const t = k[0]/1000;
+      const o=+k[1], h=+k[2], l=+k[3], c=+k[4];
+      cData.push({ time:t, open:o, high:h, low:l, close:c });
+      
+      // Net Volume Logic
+      const net = 2 * (+k[10]) - (+k[7]); 
+      vData.push({ time:t, value:net, color: net>=0 ? '#1fc77b' : '#e04b4b' });
+    });
+
+    candles.setData(cData);
+    volumeSeries.setData(vData);
+    
+    // Set initial last price
+    if(cData.length) lastPrice = cData[cData.length-1].close;
+
+    priceChart.timeScale().fitContent();
+    startStream(currentSession);
+    
+  } catch (e) {
+    console.error("API Error", e);
+    alert("Ошибка загрузки данных Binance. Попробуйте обновить.");
+  }
+}
+
+function startStream(sess) {
+  ws = new WebSocket(`wss://stream.binance.com:9443/ws/btcusdt@kline_${INTERVAL}`);
+  
+  ws.onmessage = (e) => {
+    if(sess !== sessionId) return;
+    const msg = JSON.parse(e.data);
+    const k = msg.k;
+    const t = Math.floor(k.t / 1000);
+    const c = +k.c;
+    
+    lastPrice = c; // Обновляем глобальную цену
+
+    candles.update({ time:t, open:+k.o, high:+k.h, low:+k.l, close:c });
+
+    const net = 2 * (+k.Q) - (+k.q);
+    volumeSeries.update({ time:t, value:net, color: net>=0 ? '#1fc77b' : '#e04b4b' });
+
+    updateGameLoop(); // Проверяем PnL при каждом тике
+  };
+}
+
+function setTF(tf) {
+  if(INTERVAL === tf) return;
+  INTERVAL = tf;
+  document.querySelectorAll('.tf-buttons button').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  loadData();
+}
+
+
+/* ===== 4. TRADING ENGINE ===== */
+let balance = 10.00;
+const LEVERAGE = 150;
+let position = null; // { side: 'long'|'short', entry: number, size: number }
+
+const uiBal = document.getElementById('ui-bal');
+const uiPnl = document.getElementById('ui-pnl');
+const actionsDiv = document.getElementById('action-buttons');
+const resetBtn = document.getElementById('btn-reset');
+
+function openPos(side) {
+  if(position || balance < 1) return;
+  
+  // Открываем на весь баланс
+  const margin = balance;
+  const entry = lastPrice;
+  const notional = margin * LEVERAGE;
+  
+  // Цена ликвидации
+  // Long: Liq = Entry * (1 - 1/Lev)
+  // Short: Liq = Entry * (1 + 1/Lev)
+  const liqPrice = side === 'long' 
+    ? entry * (1 - 0.95/LEVERAGE) // 0.95 буфер чтобы не сразу в 0
+    : entry * (1 + 0.95/LEVERAGE);
+
+  position = {
+    side,
+    entry,
+    margin,
+    notional,
+    liqPrice,
+    lines: []
+  };
+
+  // Рисуем линии
+  position.lines.push(priceChart.addPriceLine({
+    price: entry, color: '#f0b90b', lineStyle: 2, title: `ENTRY ${side.toUpperCase()}`
+  }));
+  position.lines.push(priceChart.addPriceLine({
+    price: liqPrice, color: '#e04b4b', lineStyle: 0, title: 'LIQ PRICE'
+  }));
+
+  renderControls();
+}
+
+function closePos() {
+  if(!position) return;
+  
+  const pnl = calcPnL();
+  balance += pnl;
+  if(balance < 0) balance = 0;
+
+  // Удаляем линии
+  position.lines.forEach(l => priceChart.removePriceLine(l));
+  position = null;
+  
+  renderControls();
+  uiPnl.textContent = "0.00";
+  uiPnl.className = "stat-val pnl-neu";
+  uiBal.textContent = balance.toFixed(2);
+}
+
+function calcPnL() {
+  if(!position) return 0;
+  const diff = (lastPrice - position.entry) / position.entry;
+  if(position.side === 'long') return position.notional * diff;
+  else return position.notional * -diff;
+}
+
+function updateGameLoop() {
+  if(!position) return;
+
+  const pnl = calcPnL();
+  const equity = balance + pnl;
+  
+  // Обновление UI PnL
+  uiPnl.textContent = (pnl > 0 ? "+" : "") + pnl.toFixed(2);
+  uiPnl.className = "stat-val " + (pnl >= 0 ? "pnl-pos" : "pnl-neg");
+  
+  // Проверка ликвидации
+  // Если Equity упал ниже 5% от маржи (для реализма) или цена пересекла Liq
+  let isLiq = false;
+  if (position.side === 'long' && lastPrice <= position.liqPrice) isLiq = true;
+  if (position.side === 'short' && lastPrice >= position.liqPrice) isLiq = true;
+  
+  if (isLiq || equity <= 0) {
+    balance = 0;
+    uiBal.textContent = "0.00";
+    position.lines.forEach(l => priceChart.removePriceLine(l));
+    position = null;
+    alert("LIQUIDATED!");
+    renderControls();
+  }
+}
+
+function renderControls() {
+  if(balance <= 0.1 && !position) {
+    resetBtn.style.display = 'block';
+    actionsDiv.innerHTML = `<button class="btn" disabled>GAME OVER</button>`;
+    return;
+  }
+  
+  resetBtn.style.display = 'none';
+
+  if(position) {
+    actionsDiv.innerHTML = `
+      <button class="btn btn-close" style="width:100%" onclick="closePos()">
+        CLOSE POSITION
+      </button>
+    `;
+  } else {
+    actionsDiv.innerHTML = `
+      <button class="btn btn-buy" onclick="openPos('long')">LONG</button>
+      <button class="btn btn-sell" onclick="openPos('short')">SHORT</button>
+    `;
+  }
+}
+
+function resetGame() {
+  balance = 10.00;
+  uiBal.textContent = "10.00";
+  renderControls();
+}
+
+/* ===== INIT ===== */
+loadData();
+renderControls();
+
+</script>
+</body>
+</html>
