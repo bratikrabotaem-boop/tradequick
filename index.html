@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Chaos Sim Stable</title>
+<title>Chaos Sim Visuals</title>
 
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
 
 <style>
-/* ===== 1. СТИЛЬ (Скролл сохранен) ===== */
+/* ===== 1. СТИЛЬ (Скролл и лэйаут сохранены) ===== */
 body {
     margin: 0;
     background: #121417;
@@ -18,7 +18,7 @@ body {
     min-height: 100vh;
     display: block;
     padding-bottom: 40px;
-    -webkit-tap-highlight-color: transparent; /* Убирает синий квадрат при нажатии */
+    -webkit-tap-highlight-color: transparent;
 }
 
 .wrapper {
@@ -116,18 +116,17 @@ header {
     transition: transform 0.1s, background 0.2s, opacity 0.2s;
     cursor: pointer;
     line-height: 1.1;
-    user-select: none; /* Чтобы текст не выделялся при быстром нажатии */
+    user-select: none;
 }
 .btn:active { transform: scale(0.96); }
 
-/* Цветовые модификаторы */
 .btn-green { background: #1fc77b; color: #000; box-shadow: 0 4px 12px rgba(31, 199, 123, 0.2); opacity: 1; }
 .btn-red { background: #e04b4b; color: #fff; box-shadow: 0 4px 12px rgba(224, 75, 75, 0.2); opacity: 1; }
 .btn-disabled {
     background: #2a2d33 !important;
     color: #6b7280 !important;
     box-shadow: none !important;
-    cursor: default; /* Не показывать палец */
+    cursor: default;
     border: 1px solid #374151;
     opacity: 1;
 }
@@ -263,7 +262,7 @@ function tick() {
 setInterval(tick, 100);
 
 /* ==========================================
-   4. ТОРГОВАЯ ЛОГИКА (НОВАЯ СИСТЕМА)
+   4. ТОРГОВАЯ ЛОГИКА
    ========================================== */
 let balance = 10.00;
 const LEVERAGE = 150;
@@ -278,9 +277,7 @@ const btnLeft = document.getElementById('btn-left');
 const btnRight = document.getElementById('btn-right');
 
 // === ОБРАБОТЧИКИ НАЖАТИЙ ===
-
 function handleLeftClick() {
-    // Левая кнопка: Либо открыть LONG, либо закрыть SHORT
     if (!position) {
         openPos('long');
     } else if (position.side === 'short') {
@@ -289,7 +286,6 @@ function handleLeftClick() {
 }
 
 function handleRightClick() {
-    // Правая кнопка: Либо открыть SHORT, либо закрыть LONG
     if (!position) {
         openPos('short');
     } else if (position.side === 'long') {
@@ -298,7 +294,6 @@ function handleRightClick() {
 }
 
 // === ФУНКЦИИ ===
-
 function openPos(side) {
     if(position || balance <= 0) return;
 
@@ -309,8 +304,29 @@ function openPos(side) {
 
     position = { side, entry, notional, liq, lines: [] };
 
-    position.lines.push(chart.addPriceLine({ price: entry, color: '#f0b90b', lineWidth: 2, lineStyle: 2, title: 'ENTRY' }));
-    position.lines.push(chart.addPriceLine({ price: liq, color: '#e04b4b', lineWidth: 2, lineStyle: 0, title: 'LIQ' }));
+    // --- ДОБАВЛЕНИЕ ЛИНИЙ (ЗЕЛЕНАЯ И КРАСНАЯ ПУНКТИРНЫЕ) ---
+    
+    // 1. Зеленая пунктирная (ВХОД)
+    const lineEntry = candleSeries.createPriceLine({
+        price: entry,
+        color: '#1fc77b', // Зеленый
+        lineWidth: 2,
+        lineStyle: LightweightCharts.LineStyle.Dotted, // Пунктир
+        axisLabelVisible: true,
+        title: 'ENTRY',
+    });
+
+    // 2. Красная пунктирная (ЛИКВИДАЦИЯ)
+    const lineLiq = candleSeries.createPriceLine({
+        price: liq,
+        color: '#e04b4b', // Красный
+        lineWidth: 2,
+        lineStyle: LightweightCharts.LineStyle.Dotted, // Пунктир
+        axisLabelVisible: true,
+        title: 'LIQUIDATION',
+    });
+
+    position.lines.push(lineEntry, lineLiq);
 
     updateButtonsUI();
 }
@@ -318,26 +334,24 @@ function openPos(side) {
 function closePos() {
     if(!position) return;
     
-    // 1. Фиксация прибыли
     let profit = Number(calcPnL());
     if (isNaN(profit)) profit = 0;
 
     balance = Number(balance) + profit;
     if(balance < 0) balance = 0;
 
-    // 2. Обновление баланса
     elBal.textContent = balance.toFixed(2);
     
-    // Вспышка цвета
     const flashColor = profit >= 0 ? '#1fc77b' : '#e04b4b';
     elBal.style.color = flashColor;
     setTimeout(() => { elBal.style.color = '#e6e6e6'; }, 600);
 
-    // 3. Удаление линий
-    if(position.lines) position.lines.forEach(l => chart.removePriceLine(l));
+    // Удаление линий
+    if(position.lines) {
+        position.lines.forEach(l => candleSeries.removePriceLine(l));
+    }
     position = null;
     
-    // 4. Сброс PnL
     elPnl.textContent = "0.00";
     elPnl.className = "stat-val pnl-neu";
     
@@ -369,7 +383,7 @@ function updateGameLoop() {
 
     if(isLiq) {
         balance = 0;
-        if(position.lines) position.lines.forEach(l => chart.removePriceLine(l));
+        if(position.lines) position.lines.forEach(l => candleSeries.removePriceLine(l));
         position = null;
         elBal.textContent = "0.00";
         elPnl.textContent = "0.00";
@@ -378,37 +392,24 @@ function updateGameLoop() {
 }
 
 function updateButtonsUI() {
-    // 1. Нет позиции (Обычное состояние)
     if (!position) {
-        // Левая кнопка (LONG)
         btnLeft.className = "btn btn-green";
         btnLeft.innerHTML = `LONG <span class="btn-sub">BUY</span>`;
-        btnLeft.disabled = false;
-
-        // Правая кнопка (SHORT)
+        
         btnRight.className = "btn btn-red";
         btnRight.innerHTML = `SHORT <span class="btn-sub">SELL</span>`;
-        btnRight.disabled = false;
     } 
-    // 2. Позиция LONG
     else if (position.side === 'long') {
-        // Левая (Вход) - Отключена
         btnLeft.className = "btn btn-disabled";
         btnLeft.innerHTML = `LONG <span class="btn-sub">@${position.entry.toFixed(0)}</span>`;
-        // Важно: мы не ставим disabled=true, чтобы клик не блокировался системой, 
-        // но в функции handleLeftClick стоит проверка.
         
-        // Правая (Выход) - Красная кнопка закрытия
         btnRight.className = "btn btn-red";
         btnRight.innerHTML = `CLOSE LONG <span class="btn-sub">TAKE PROFIT</span>`;
     }
-    // 3. Позиция SHORT
     else if (position.side === 'short') {
-        // Левая (Выход) - Зеленая кнопка закрытия
         btnLeft.className = "btn btn-green";
         btnLeft.innerHTML = `CLOSE SHORT <span class="btn-sub">TAKE PROFIT</span>`;
 
-        // Правая (Вход) - Отключена
         btnRight.className = "btn btn-disabled";
         btnRight.innerHTML = `SHORT <span class="btn-sub">@${position.entry.toFixed(0)}</span>`;
     }
